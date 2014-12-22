@@ -20,11 +20,8 @@
 class Buffer
 {
 public:
-    static Buffer *create(wl_shm *shm, QScreen *screen)
+    static Buffer *create(wl_shm *shm, int width, int height, int stride, int format)
     {
-        int width = screen->size().width();
-        int height = screen->size().height();
-        int stride = width * 4;
         int size = stride * height;
 
         char filename[] = "/tmp/lipstick-recorder-shm-XXXXXX";
@@ -171,19 +168,12 @@ void Recorder::start()
 
     m_recorder = lipstick_recorder_manager_create_recorder(m_manager, output);
     static const lipstick_recorder_listener recorderListener = {
+        setup,
         frame,
         failed,
         cancel
     };
     lipstick_recorder_add_listener(m_recorder, &recorderListener, this);
-
-    for (int i = 0; i < 6; ++i) {
-        Buffer *buffer = Buffer::create(m_shm, m_screen);
-        if (!buffer)
-            qFatal("Failed to create a buffer.");
-        m_buffers << buffer;
-    }
-    recordFrame();
 }
 
 void Recorder::recordFrame()
@@ -205,6 +195,20 @@ void Recorder::recordFrame()
         qWarning("No free buffers.");
         m_starving = true;
     }
+}
+
+void Recorder::setup(void *data, lipstick_recorder *recorder, int width, int height, int stride, int format)
+{
+    Recorder *rec = static_cast<Recorder *>(data);
+    QMutexLocker lock(&rec->m_mutex);
+
+    for (int i = 0; i < 6; ++i) {
+        Buffer *buffer = Buffer::create(rec->m_shm, width, height, stride, format);
+        if (!buffer)
+            qFatal("Failed to create a buffer.");
+        rec->m_buffers << buffer;
+    }
+    rec->recordFrame();
 }
 
 void Recorder::frame(void *data, lipstick_recorder *recorder, wl_buffer *buffer, uint32_t timestamp, int transform)
