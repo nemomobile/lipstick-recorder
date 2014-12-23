@@ -94,17 +94,13 @@ public:
             FrameEvent *fe = static_cast<FrameEvent *>(e);
             Buffer *buf = fe->buffer;
             static int id = 0;
-            QElapsedTimer timer;
-            timer.start();
             QImage img = fe->transform == LIPSTICK_RECORDER_TRANSFORM_Y_INVERTED ? buf->image.mirrored(false, true) : buf->image;
             buf->busy = false;
             if (rec->m_starving)
                 rec->recordFrame();
-            int t1 = timer.restart();
-            img.save(QString("frame%1.bmp").arg(id++, 3, 10, QChar('0')));
-            qDebug()<<t1<<timer.elapsed();
-            QMutexLocker lock(&rec->m_mutex);
-                        qDebug()<<"fe"<<buf<<rec->m_starving<<id;
+            QString filename = QString("frame%1.bmp").arg(id++, 3, 10, QChar('0'));
+            qDebug("saving %s.", qPrintable(filename));
+            img.save(filename);
             return true;
         }
         return QObject::event(e);
@@ -190,7 +186,6 @@ void Recorder::recordFrame()
         wl_display_flush(m_display);
         buf->busy = true;
         m_starving = false;
-        qDebug()<<"request"<<buf;
     } else {
         qWarning("No free buffers.");
         m_starving = true;
@@ -222,7 +217,6 @@ void Recorder::frame(void *data, lipstick_recorder *recorder, wl_buffer *buffer,
     rec->recordFrame();
     Buffer *buf = static_cast<Buffer *>(wl_buffer_get_user_data(buffer));
 
-    qDebug()<<"frame"<<timestamp - time<<buf;
     time = timestamp;
 
     qApp->postEvent(rec->m_buffersHandler, new FrameEvent(buf, timestamp, transform));
